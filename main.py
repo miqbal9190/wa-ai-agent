@@ -1,14 +1,11 @@
 import os, requests, json
 from flask import Flask, request, jsonify
-import google.generativeai as genai
 
 app = Flask(__name__)
 
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 GOOGLE_SHEETS_URL = os.environ.get("GOOGLE_SHEETS_URL")
 FONNTE_TOKEN = os.environ.get("FONNTE_TOKEN")
-
-genai.configure(api_key=GEMINI_API_KEY)
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
@@ -22,7 +19,6 @@ def webhook():
         try:
             # Ambil data dari Google Sheets
             res = requests.get(GOOGLE_SHEETS_URL, timeout=10)
-            
             try:
                 orders_data = res.json()
             except:
@@ -32,24 +28,33 @@ def webhook():
                 reply_to_wa("Belum ada data orderan jastip yang tercatat di Google Sheets.", sender, group_id)
                 return jsonify({"status": "success"})
             
-            # KOREKSI DISINI: Menggunakan format penamaan model 'models/gemini-1.5-flash-latest' atau 'gemini-1.5-flash' yang lebih kompatibel
-            model_text = genai.GenerativeModel('models/gemini-1.5-flash')
+            # FORMAT AMAN: Tembak langsung API Gemini lewat HTTP POST tanpa library google-generativeai
+            gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
+            headers = {"Content-Type": "application/json"}
+            
             prompt = (
                 "Kamu adalah asisten jastip 'Jastip Arzanka'. Tugasmu adalah membuat laporan rekapan pesanan yang rapi "
                 "dari data berikut. Kelompokkan berdasarkan nama Event. Hitung juga total omset (Total akumulasi dari kolom total/harga). "
                 "Gunakan format teks WhatsApp yang menarik, pakai emoji, dan cetak tebal (pake tanda bintang *) pada poin penting. "
                 f"Data pesanan: {str(orders_data)}"
             )
-            response = model_text.generate_content(prompt)
-            reply_to_wa(response.text, sender, group_id)
+            
+            payload = {
+                "contents": [{
+                    "parts": [{"text": prompt}]
+                }]
+            }
+            
+            gemini_res = requests.post(gemini_url, headers=headers, json=payload, timeout=15)
+            gemini_output = gemini_res.json()
+            
+            # Ekstrak hasil teks dari struktur JSON Gemini API murni
+            text_response = gemini_output['candidates'][0]['content']['parts'][0]['text']
+            
+            reply_to_wa(text_response, sender, group_id)
+            
         except Exception as e:
-            # Jika masih terkendala model lama, kita coba fallback ke penamaan tanpa prefix
-            try:
-                model_text = genai.GenerativeModel('gemini-1.5-flash-latest')
-                response = model_text.generate_content(prompt)
-                reply_to_wa(response.text, sender, group_id)
-            except Exception as inner_e:
-                reply_to_wa(f"Gagal mengambil data rekapan dari sistem. (Detail: {str(inner_e)[:50]})", sender, group_id)
+            reply_to_wa(f"Gagal mengambil data rekapan dari sistem. (Detail: {str(e)[:50]})", sender, group_id)
             
     # 2. PERINTAH MASUKKAN ORDER (Pemicu: !order)
     elif message.lower().startswith("!order"):
