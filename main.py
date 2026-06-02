@@ -23,18 +23,17 @@ def webhook():
             # Ambil data dari Google Sheets
             res = requests.get(GOOGLE_SHEETS_URL, timeout=10)
             
-            # Mengamankan pembacaan teks data Sheets
             try:
                 orders_data = res.json()
             except:
-                orders_data = res.text # Jika gagal format JSON, ambil teks mentahnya
+                orders_data = res.text
                 
             if not orders_data or str(orders_data).strip() == "[]":
                 reply_to_wa("Belum ada data orderan jastip yang tercatat di Google Sheets.", sender, group_id)
                 return jsonify({"status": "success"})
             
-            # Panggil Gemini untuk merangkum secara bebas (tanpa response_mime_type JSON biar fleksibel)
-            model_text = genai.GenerativeModel('gemini-1.5-flash')
+            # KOREKSI DISINI: Menggunakan format penamaan model 'models/gemini-1.5-flash-latest' atau 'gemini-1.5-flash' yang lebih kompatibel
+            model_text = genai.GenerativeModel('models/gemini-1.5-flash')
             prompt = (
                 "Kamu adalah asisten jastip 'Jastip Arzanka'. Tugasmu adalah membuat laporan rekapan pesanan yang rapi "
                 "dari data berikut. Kelompokkan berdasarkan nama Event. Hitung juga total omset (Total akumulasi dari kolom total/harga). "
@@ -44,8 +43,13 @@ def webhook():
             response = model_text.generate_content(prompt)
             reply_to_wa(response.text, sender, group_id)
         except Exception as e:
-            # Mengeluarkan pesan eror asli agar kita tahu masalahnya jika tetap gagal
-            reply_to_wa(f"Gagal mengambil data rekapan dari sistem. (Detail: {str(e)[:50]})", sender, group_id)
+            # Jika masih terkendala model lama, kita coba fallback ke penamaan tanpa prefix
+            try:
+                model_text = genai.GenerativeModel('gemini-1.5-flash-latest')
+                response = model_text.generate_content(prompt)
+                reply_to_wa(response.text, sender, group_id)
+            except Exception as inner_e:
+                reply_to_wa(f"Gagal mengambil data rekapan dari sistem. (Detail: {str(inner_e)[:50]})", sender, group_id)
             
     # 2. PERINTAH MASUKKAN ORDER (Pemicu: !order)
     elif message.lower().startswith("!order"):
