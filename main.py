@@ -17,26 +17,39 @@ def webhook():
     # 1. PERINTAH REKAP ORDER (Pemicu: !rekap)
     if message.lower().startswith("!rekap"):
         try:
-            # Ambil data dari Google Sheets
             res = requests.get(GOOGLE_SHEETS_URL, timeout=10)
-            try:
-                orders_data = res.json()
-            except:
-                orders_data = res.text
+            orders_data = res.json()
                 
-            if not orders_data or str(orders_data).strip() == "[]":
+            if not orders_data or str(orders_data).strip() == "[]" or not isinstance(orders_data, list):
                 reply_to_wa("Belum ada data orderan jastip yang tercatat di Google Sheets.", sender, group_id)
                 return jsonify({"status": "success"})
             
-            # FORMAT AMAN: Tembak langsung API Gemini lewat HTTP POST tanpa library google-generativeai
+            # KUNCINYA DISINI: Kita susun data mentah Sheets menjadi teks poin-poin yang bersih
+            daftar_pesanan_teks = ""
+            for i, order in enumerate(orders_data, 1):
+                # Ambil data dengan aman, jika kosong beri tanda strip
+                ev = order.get('event', 'Reguler')
+                by = order.get('buyer', 'Tanpa Nama')
+                pr = order.get('product', 'Tanpa Produk')
+                qt = order.get('qty', 1)
+                hg = order.get('harga', 0)
+                tot = order.get('total', hg * qt)
+                
+                daftar_pesanan_teks += f"{i}. Event: {ev} | Pembeli: {by} | Produk: {pr} | Qty: {qt} | Harga: {hg} | Total: {tot}\n"
+            
+            # Tembak langsung API Gemini lewat HTTP POST
             gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
             headers = {"Content-Type": "application/json"}
             
             prompt = (
-                "Kamu adalah asisten jastip 'Jastip Arzanka'. Tugasmu adalah membuat laporan rekapan pesanan yang rapi "
-                "dari data berikut. Kelompokkan berdasarkan nama Event. Hitung juga total omset (Total akumulasi dari kolom total/harga). "
-                "Gunakan format teks WhatsApp yang menarik, pakai emoji, dan cetak tebal (pake tanda bintang *) pada poin penting. "
-                f"Data pesanan: {str(orders_data)}"
+                "Kamu adalah asisten jastip profesional dari 'Jastip Arzanka'. Tugasmu adalah membuat laporan rekapan pesanan yang rapi, "
+                "cantik, dan menarik untuk dibaca di grup WhatsApp berdasarkan data penjualan di bawah ini.\n\n"
+                "Aturan Laporan:\n"
+                "1. Kelompokkan pesanan berdasarkan nama Event (jika eventnya 'Reguler', kelompokkan dalam Pesanan Reguler).\n"
+                "2. Tuliskan detail nama pembeli, nama produk, jumlah qty, dan total harganya.\n"
+                "3. Di bagian paling bawah, hitung dan tampilkan TOTAL OMSET KESELURUHAN (penjumlahan dari semua kolom Total).\n"
+                "4. Gunakan gaya bahasa yang ramah, beri emoji yang sesuai, dan gunakan tanda bintang (*) untuk menebalkan poin penting agar scannable.\n\n"
+                f"Data Penjualan:\n{daftar_pesanan_teks}"
             )
             
             payload = {
@@ -48,10 +61,14 @@ def webhook():
             gemini_res = requests.post(gemini_url, headers=headers, json=payload, timeout=15)
             gemini_output = gemini_res.json()
             
-            # Ekstrak hasil teks dari struktur JSON Gemini API murni
-            text_response = gemini_output['candidates'][0]['content']['parts'][0]['text']
-            
-            reply_to_wa(text_response, sender, group_id)
+            # Ambil hasil teks dengan pengaman jika candidates kosong
+            if 'candidates' in gemini_output and gemini_output['candidates']:
+                text_response = gemini_output['candidates'][0]['content']['parts'][0]['text']
+                reply_to_wa(text_response, sender, group_id)
+            else:
+                # Jika Google AI menolak karena alasan konten, kita berikan rekap teks standar bawaan Python (Anti-Gagal!)
+                fallback_msg = "*REKAP PESANAN JASTIP ARZANKA*\n\n" + daftar_pesanan_teks
+                reply_to_wa(fallback_msg, sender, group_id)
             
         except Exception as e:
             reply_to_wa(f"Gagal mengambil data rekapan dari sistem. (Detail: {str(e)[:50]})", sender, group_id)
