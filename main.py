@@ -28,8 +28,16 @@ def webhook():
                 return jsonify({"status": "success"})
             
             # Merakit data poin-poin murni untuk disetor ke Gemini
+               # Mengambil waktu lengkap dari server untuk kompas waktu Gemini
+            waktu_sekarang = datetime.now()
+            hari_ini_server = waktu_sekarang.strftime("%Y-%m-%d")
+            nama_hari = waktu_sekarang.strftime("%A")
+            bulan_tahun = waktu_sekarang.strftime("%B %Y")
+            
+            # Merakit data poin-poin TERMASUK TANGGAL agar Gemini bisa memfilter waktu
             daftar_pesanan_teks = ""
             for i, order in enumerate(orders_data, 1):
+                tgl = order.get('tanggal', '') # Format dari Google Sheets: YYYY-MM-DD HH:MM:SS
                 ev = order.get('event', 'Reguler')
                 by = order.get('buyer', 'Tanpa Nama')
                 pr = order.get('product', 'Tanpa Produk')
@@ -37,14 +45,15 @@ def webhook():
                 hg = order.get('harga', 0)
                 tot = order.get('total', hg * qt)
                 
-                daftar_pesanan_teks += f"{i}. Event: {ev} | Pembeli: {by} | Produk: {pr} | Qty: {qt} | Harga: {hg} | Total: {tot}\n"
+                daftar_pesanan_teks += f"{i}. Tanggal: {tgl} | Event: {ev} | Pembeli: {by} | Produk: {pr} | Qty: {qt} | Harga: {hg} | Total: {tot}\n"
+
             
-            # Alamat API Gemini 1.5 Flash Resmi
+            # Alamat API Gemini 2.5 Flash Resmi
             gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={GEMINI_API_KEY}"
             headers = {"Content-Type": "application/json"}
             
             prompt = (
-                "Kamu adalah asisten jastip profesional dari 'Jastip Arzanka'. Tugasmu adalah menyusun dan merapikan "
+                "Kamu adalah asisten jastip profesional dari 'Jastip Ibun Arzanka'. Tugasmu adalah menyusun dan merapikan "
                 "data teks penjualan di bawah ini menjadi format laporan WhatsApp grup yang sangat cantik, estetik, dan rapi.\n\n"
                 "⚠️ INSTRUKSI PENYARINGAN DATA (CRITICAL):\n"
                 f"User meminta kriteria filter spesifik berikut: '{filter_prompt}'\n"
