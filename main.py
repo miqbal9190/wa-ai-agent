@@ -26,6 +26,7 @@ def webhook():
                 reply_to_wa("Belum ada data orderan jastip yang tercatat di Google Sheets.", sender, group_id)
                 return jsonify({"status": "success"})
             
+            # Format JSON bersih tanpa tanggal agar Gemini lancar merangkum
             daftar_pesanan_teks = ""
             for i, order in enumerate(orders_data, 1):
                 ev = order.get('event', 'Reguler')
@@ -71,12 +72,11 @@ def webhook():
         except Exception as e:
             reply_to_wa(f"Gagal mengambil data rekapan dari sistem. (Detail: {str(e)[:50]})", sender, group_id)
             
-    # 2. PERINTAH MASUKKAN ORDER MULTI-BARIS (Pemicu: !order)
+    # 2. PERINTAH MASUKKAN ORDER MULTI-BARIS & TUNGGAL (Pemicu: !order)
     elif message.lower().startswith("!order"):
         try:
             baris_pesanan = message.split('\n')
             
-            # Wadah untuk mengumpulkan semua paket baris data sebelum dikirim sekaligus
             paket_massal = []
             sukses_dicatat = []
             gagal_dicatat = 0
@@ -92,14 +92,19 @@ def webhook():
                 
                 bagian = [b.strip() for b in text_clean.split('-')]
                 
+                # Validasi minimal: Harus ada Buyer, Product, Qty, Harga (4 elemen)
                 if len(bagian) >= 4:
                     buyer_name = bagian[0]
                     product_name = bagian[1]
                     qty_clean = "".join(filter(str.isdigit, bagian[2]))
                     harga_clean = "".join(filter(str.isdigit, bagian[3]))
-                    event_name = bagian[4] if len(bagian) >= 5 and bagian[4] else "Reguler"
                     
-                    # Masukkan ke dalam daftar paket data
+                    # PERBAIKAN LOGIKA DISINI: Cek dengan aman apakah elemen ke-5 (index 4) ada atau tidak
+                    if len(bagian) >= 5 and bagian[4]:
+                        event_name = bagian[4]
+                    else:
+                        event_name = "Reguler"
+                    
                     paket_massal.append({
                         "event": event_name,
                         "buyer": buyer_name,
@@ -112,12 +117,11 @@ def webhook():
                     gagal_dicatat += 1
 
             if paket_massal:
-                # KOREKSI UTAMA: Kirim seluruh paket data sekaligus dalam 1 kali request POST!
-                # Kita tambahkan parameter data_massal agar Apps Script tahu ini adalah kiriman paket
+                # Kirim data sebagai paket massal yang aman ke Google Apps Script
                 payload_sheets = {"data_massal": paket_massal}
                 requests.post(GOOGLE_SHEETS_URL, json=payload_sheets, timeout=15)
                 
-                msg_konfirmasi = "✅ *Berhasil Mencatat Pesanan Massal:*\n" + "\n".join(sukses_dicatat)
+                msg_konfirmasi = "✅ *Berhasil Mencatat Pesanan:*\n" + "\n".join(sukses_dicatat)
                 if gagal_dicatat > 0:
                     msg_konfirmasi += f"\n\n⚠️ *Catatan:* Ada {gagal_dicatat} baris pesanan yang gagal tercatat."
                 reply_to_wa(msg_konfirmasi, sender, group_id)
@@ -133,7 +137,7 @@ def webhook():
                 "Contoh:\n"
                 "!order\n"
                 "Bu Ani - Gamis Silk - 2 - 150000 - Live Bandung\n"
-                "ibun - Gelas Cantik - 3 - 1000 - ihls", 
+                "ibun - Gelas Cantik - 3 - 1000", 
                 sender, 
                 group_id
             )
