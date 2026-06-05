@@ -57,7 +57,8 @@ def webhook():
                 "1. Kelompokkan pesanan dengan rapi berdasarkan nama Event. Gunakan emoji penanda yang menarik.\n"
                 "2. Tuliskan detail nama pembeli (cetak tebal), nama produk, qty, dan nilai TOTAL yang tertera di data (JANGAN mengubah atau menghitung ulang angka TOTAL yang diberikan, tulis apa adanya saja).\n"
                 "3. JANGAN PERNAH menampilkan total akumulasi omset keseluruhan di bagian bawah (Sembunyikan privasi omset total).\n"
-                "4. Gunakan gaya bahasa online shop yang ramah dan gunakan tanda bintang (*) untuk cetak tebal.\n\n"
+                "4. Jika Filter berdasarkan nama buyer, tuliskan nilai grand total berdasarkan penjumlahan dari nilai total dengan format Rp.xxx (lengkap dengan titik format penulisan uang) sebagai yang harus dibayar oleh buyer.\n"
+                "5. Gunakan gaya bahasa online shop yang ramah dan gunakan tanda bintang (*) untuk cetak tebal.\n\n"
                 f"Data Penjualan Mentah:\n{daftar_pesanan_teks}"
             )
             
