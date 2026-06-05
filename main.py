@@ -50,7 +50,7 @@ def webhook():
                 f"User meminta kriteria filter spesifik berikut: '{filter_prompt}'\n"
                 "- Jika kriteria berisi nama event tertentu (misal: 'event ihls'), saring dan tampilkan HANYA pesanan dari event tersebut.\n"
                 "- Jika kriteria berisi nama buyer tertentu (misal: 'buyer ibun'), saring dan tampilkan HANYA pesanan milik buyer tersebut.\n"
-                "- Jika kriteria berisi keterangan waktu (misal: 'hari ini' atau 'kemarin'), saring dan tampilkan HANYA pesanan pada waktu tersebut.\n"
+                "- Jika kriteria berisi keterangan waktu tertentu (misal: 'hari ini', 'kemarin', atau 'Tanggal 1 sampai tanggal 5'), saring dan tampilkan HANYA pesanan pada keterangan waktu tersebut.\n"
                 "- Jika kriteria KOSONG, tampilkan rekap semua data tanpa terkecuali.\n"
                 "- Jika data setelah disaring ternyata kosong/tidak ditemukan yang cocok, balas saja dengan kalimat: 'Maaf, data rekapan dengan kriteria tersebut tidak ditemukan.'\n\n"
                 "Aturan Tampilan (Jika data ditemukan):\n"
@@ -69,7 +69,17 @@ def webhook():
                 text_response = gemini_output['candidates'][0]['content']['parts'][0]['text']
                 reply_to_wa(text_response, sender, group_id)
             else:
-                fallback_msg = f"*REKAP PESANAN JASTIP ARZANKA*\n(Filter: {filter_prompt if filter_prompt else 'Semua'})\n\n" + daftar_pesanan_teks
+                # FITUR SUNTIKAN PELACAK EROR JIKALAU GEMINI MENOLAK / API KEY BERMASALAH
+                error_details = "Eror tidak dikenal atau respons kosong dari Google"
+                if 'error' in gemini_output:
+                    error_details = gemini_output['error'].get('message', str(gemini_output['error']))
+                
+                fallback_msg = (
+                    f"⚠️ *Gemini API Error:* {error_details}\n\n"
+                    f"*REKAP STANDAR (FALLBACK):*\n"
+                    f"(Filter: {filter_prompt if filter_prompt else 'Semua'})\n\n"
+                    f"{daftar_pesanan_teks}"
+                )
                 reply_to_wa(fallback_msg, sender, group_id)
             
         except Exception as e:
