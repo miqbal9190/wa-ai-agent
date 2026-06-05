@@ -40,7 +40,7 @@ def webhook():
                 daftar_pesanan_teks += f"{i}. Event: {ev} | Pembeli: {by} | Produk: {pr} | Qty: {qt} | Harga: {hg} | Total: {tot}\n"
             
             # Alamat API Gemini 1.5 Flash Resmi
-            gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
+            gemini_url = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
             headers = {"Content-Type": "application/json"}
             
             prompt = (
