@@ -17,6 +17,7 @@ def webhook():
     # 1. PERINTAH REKAP ORDER DENGAN FILTER DINAMIS (Pemicu: !rekap)
     if message.lower().startswith("!rekap"):
         try:
+            # Mengambil text setelah kata !rekap (misal: "event ihls" atau "buyer ibun")
             filter_prompt = message[6:].strip()
             
             res = requests.get(GOOGLE_SHEETS_URL, timeout=10)
@@ -26,7 +27,7 @@ def webhook():
                 reply_to_wa("Belum ada data orderan jastip yang tercatat di Google Sheets.", sender, group_id)
                 return jsonify({"status": "success"})
             
-            # Format JSON bersih tanpa tanggal agar Gemini lancar merangkum
+            # Merakit data poin-poin murni untuk disetor ke Gemini
             daftar_pesanan_teks = ""
             for i, order in enumerate(orders_data, 1):
                 ev = order.get('event', 'Reguler')
@@ -38,6 +39,7 @@ def webhook():
                 
                 daftar_pesanan_teks += f"{i}. Event: {ev} | Pembeli: {by} | Produk: {pr} | Qty: {qt} | Harga: {hg} | Total: {tot}\n"
             
+            # Alamat API Gemini 1.5 Flash Resmi
             gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
             headers = {"Content-Type": "application/json"}
             
@@ -48,6 +50,7 @@ def webhook():
                 f"User meminta kriteria filter spesifik berikut: '{filter_prompt}'\n"
                 "- Jika kriteria berisi nama event tertentu (misal: 'event ihls'), saring dan tampilkan HANYA pesanan dari event tersebut.\n"
                 "- Jika kriteria berisi nama buyer tertentu (misal: 'buyer ibun'), saring dan tampilkan HANYA pesanan milik buyer tersebut.\n"
+                "- Jika kriteria berisi keterangan waktu (misal: 'hari ini' atau 'kemarin'), saring dan tampilkan HANYA pesanan pada waktu tersebut.\n"
                 "- Jika kriteria KOSONG, tampilkan rekap semua data tanpa terkecuali.\n"
                 "- Jika data setelah disaring ternyata kosong/tidak ditemukan yang cocok, balas saja dengan kalimat: 'Maaf, data rekapan dengan kriteria tersebut tidak ditemukan.'\n\n"
                 "Aturan Tampilan (Jika data ditemukan):\n"
@@ -92,14 +95,12 @@ def webhook():
                 
                 bagian = [b.strip() for b in text_clean.split('-')]
                 
-                # Validasi minimal: Harus ada Buyer, Product, Qty, Harga (4 elemen)
                 if len(bagian) >= 4:
                     buyer_name = bagian[0]
                     product_name = bagian[1]
                     qty_clean = "".join(filter(str.isdigit, bagian[2]))
                     harga_clean = "".join(filter(str.isdigit, bagian[3]))
                     
-                    # PERBAIKAN LOGIKA DISINI: Cek dengan aman apakah elemen ke-5 (index 4) ada atau tidak
                     if len(bagian) >= 5 and bagian[4]:
                         event_name = bagian[4]
                     else:
@@ -117,7 +118,6 @@ def webhook():
                     gagal_dicatat += 1
 
             if paket_massal:
-                # Kirim data sebagai paket massal yang aman ke Google Apps Script
                 payload_sheets = {"data_massal": paket_massal}
                 requests.post(GOOGLE_SHEETS_URL, json=payload_sheets, timeout=15)
                 
